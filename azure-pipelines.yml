@@ -1,0 +1,72 @@
+# ==========================================================
+# Azure Pipelines Foundations Project
+# ==========================================================
+
+# Run automatically whenever code is pushed to main.
+trigger:
+  branches:
+    include:
+      - main
+
+# Use a Microsoft-hosted Linux build agent.
+pool:
+  vmImage: 'ubuntu-latest'
+
+# Variables avoid repeating values throughout the pipeline.
+variables:
+  pythonVersion: '3.12'
+
+# A pipeline can contain one or more stages.
+stages:
+
+# ==========================================================
+# STAGE 1 - BUILD AND TEST
+# ==========================================================
+- stage: BuildAndTest
+  displayName: 'Build and Test'
+
+  jobs:
+
+  # A job is a collection of steps executed by an agent.
+  - job: Build
+    displayName: 'Build Python Application'
+
+    steps:
+
+    # Downloads the repository onto the agent.
+    - checkout: self
+
+    # Configure Python on the Microsoft-hosted agent.
+    - task: UsePythonVersion@0
+      displayName: 'Use Python $(pythonVersion)'
+      inputs:
+        versionSpec: '$(pythonVersion)'
+
+    # Upgrade pip and install application dependencies.
+    - script: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      displayName: 'Install dependencies'
+
+    # Run automated tests.
+    # A non-zero exit code will fail this pipeline step.
+    - script: |
+        pytest -v
+      displayName: 'Run unit tests'
+
+    # Execute the application.
+    - script: |
+        python src/calculator.py
+      displayName: 'Run application'
+
+    # Write some output into the artifact staging directory.
+    - script: |
+        mkdir -p $(Build.ArtifactStagingDirectory)/output
+        python src/calculator.py \
+          > $(Build.ArtifactStagingDirectory)/output/result.txt
+      displayName: 'Prepare pipeline artifact'
+
+    # Upload the directory so it survives after the agent disappears.
+    - publish: $(Build.ArtifactStagingDirectory)/output
+      artifact: calculator-output
+      displayName: 'Publish pipeline artifact'
